@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   BookmarkIcon,
   ChatIcon,
@@ -8,7 +8,45 @@ import {
   PaperAirplaneIcon,
 } from '@heroicons/react/outline'
 import { HeartIcon as HeartIconFilled } from '@heroicons/react/solid'
+import { useSession } from 'next-auth/react'
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from 'firebase/firestore'
+import { db } from '../firebase'
 function Post({ id, username, userImage, img, caption }) {
+  const { data: session } = useSession()
+  const [comment, setComment] = useState('')
+  const [comments, setComments] = useState([])
+
+  useEffect(
+    () =>
+      onSnapshot(
+        query(
+          collection(db, "posts", id, "comments"), orderBy("timestamp", "desc")),
+          (snapshot) => setComments(snapshot.docs)
+        
+      ),
+    []
+  )
+
+  const sendComment = async (e) => {
+    e.preventDefault()
+    const commentToSend = comment
+    setComment('')
+    await addDoc(collection(db, 'posts', id, 'comments'), {
+      comment: commentToSend,
+      username: session.user.username,
+      profileImg: session.user.image,
+      timestamp: serverTimestamp(),
+    })
+  }
+  console.log(comments)
+
   return (
     <div className="my-7 rounded-sm border bg-white">
       <div className="flex items-center p-5">
@@ -21,25 +59,41 @@ function Post({ id, username, userImage, img, caption }) {
         <DotsHorizontalIcon className="h-5" />
       </div>
       <img src={img} alt="" className="w-full object-cover" />
-
-      <div  className='flex justify-between px-4 p-4'>
-        <div className="flex space-x-4  ">
-          <HeartIcon className="btn" />
-          <ChatIcon className="btn" />
-          <PaperAirplaneIcon className="btn" />
+      {session && (
+        <div className="flex justify-between p-4 px-4">
+          <div className="flex space-x-4  ">
+            <HeartIcon className="btn" />
+            <ChatIcon className="btn" />
+            <PaperAirplaneIcon className="btn" />
+          </div>
+          <BookmarkIcon className="btn" />
         </div>
-        <BookmarkIcon className='btn' />
-      </div>
+      )}
 
-      <p className='p-5 truncate'>
-        <span className='font-bold mr-1'>{username} </span>{caption}
+      <p className="truncate p-5">
+        <span className="mr-1 font-bold">{username} </span>
+        {caption}
       </p>
-
-      <form className='flex items-center p-4'>
-        <EmojiHappyIcon className="h-7"  />
-        <input type="text"  className='border-none flex-1 focus:ring-0 outline-none' placeholder='Add a comment'/>
-        <button className='font-semibold text-blue-400'>Post</button>
-      </form>
+      {session && (
+        <form className="flex items-center p-4">
+          <EmojiHappyIcon className="h-7" />
+          <input
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            type="text"
+            className="flex-1 border-none outline-none focus:ring-0"
+            placeholder="Add a comment"
+          />
+          <button
+            className="font-semibold text-blue-400"
+            type="submit"
+            disabled={!comment.trim()}
+            onClick={sendComment}
+          >
+            Post
+          </button>
+        </form>
+      )}
     </div>
   )
 }
