@@ -1,22 +1,67 @@
 import React, { Fragment, useRef, useState } from 'react'
-import { useRecoilState } from 'recoil'
+import { Snapshot, useRecoilState } from 'recoil'
 import { modalState } from '../atoms/modalAtom'
 import { Dialog, Transition } from '@headlessui/react'
 import { CameraIcon } from '@heroicons/react/outline'
-
+import { db, storage } from '../firebase'
+import {
+  addDoc,
+  collection,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore'
+import { useSession } from 'next-auth/react'
+import { ref, getDownloadURL, uploadString } from 'firebase/storage'
 function Modal() {
-  const [open, setOpen] = useRecoilState(modalState);
-  const filePickerRef=useRef();
-  const [selectedFile,setSelectedFile]=useState(null);
-  const addImageToPost = (e) =>{
-    const reader=new FileReader();
-    if(e.target.files[0]){
-        reader.readAsDataURL(e.target.files[0]);
+  const { data: session } = useSession()
+  const [open, setOpen] = useRecoilState(modalState)
+  const filePickerRef = useRef()
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const captionRef = useRef()
+  const uploadPost = async () => {
+    if (loading) return
+
+    setLoading(true)
+    const docRef = await addDoc(collection(db, 'posts'), {
+      username: session.user.username,
+      caption: captionRef.current.value,
+      profileImg: session.user.image,
+      timestamp: serverTimestamp(),
+    })
+    console.log("New doc added with Id ",docRef.id)
+
+    const imageRef = ref(storage, `posts/${docRef.id}/image`)
+    await uploadString(imageRef, selectedFile, 'data_url').then(
+      async (snapshot) => {
+        const downloadUrl = await getDownloadURL(imageRef)
+        await updateDoc(doc(db, 'posts', docRef.id), {
+          image: downloadUrl,
+        })
+      }
+    )
+    
+
+    setOpen(false)
+    setLoading(false)
+    setSelectedFile(null)
+ 
+    
+  }
+  const addImageToPost = (e) => {
+    const reader = new FileReader()
+    if (e.target.files[0]) {
+      reader.readAsDataURL(e.target.files[0])
     }
-    reader.onload=(readerEvent)=>{
-        setSelectedFile(readerEvent.target.result)
+    reader.onload = (readerEvent) => {
+      setSelectedFile(readerEvent.target.result)
     }
   }
+
+
+
 
   return (
     <Transition.Root show={open} as={Fragment}>
@@ -55,57 +100,60 @@ function Modal() {
           >
             <div className="inline-block transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left align-bottom shadow-xl transition-all sm:m-8 sm:w-full sm:max-w-sm sm:align-middle">
               <div>
-
-                {selectedFile ?(
-                    <img className='w-full object-contain cursor-pointer' src={selectedFile} alt="Image" onClick={()=>{
-                        setSelectedFile(null)
-                    }} />
-                ) :(
-                <div 
-                     onClick={()=> filePickerRef.current.click()}
-                    className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 cursor-pointer"
-                >
-
+                {selectedFile ? (
+                  <img
+                    className="w-full cursor-pointer object-contain"
+                    src={selectedFile}
+                    alt="Image"
+                    onClick={() => {
+                      setSelectedFile(null)
+                    }}
+                  />
+                ) : (
+                  <div
+                    onClick={() => filePickerRef.current.click()}
+                    className="mx-auto flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-red-100"
+                  >
                     <CameraIcon
-                        className='h-6 w-6 text-red-600'
-                        aria-hidden="true"
+                      className="h-6 w-6 text-red-600"
+                      aria-hidden="true"
                     />
-                </div>
+                  </div>
                 )}
                 <div>
-                    <div className='mt-3 text-center'>
-                        <Dialog.Title
-                            as='h3'
-                            className="text-lg leading-6 font-medium text-gray-900"
-                        >
-                            Upload a photo
-                        </Dialog.Title>
-                    </div>
-                    <div >
-                        <input
-                         ref={filePickerRef}
-                         type="file"
-                         hidden
-                         onChange={addImageToPost}
-                          />
-                    </div>
-                    <div className='mt-2'>
-                        <input type="text"
-                        className='border-none focus:ring-0 w-full text-center'
-                        placeholder='Please enter a caption ...'
-                        // ref={captionRef}
-                         />
-                    </div>
-
+                  <div className="mt-3 text-center">
+                    <Dialog.Title
+                      as="h3"
+                      className="text-lg font-medium leading-6 text-gray-900"
+                    >
+                      Upload a photo
+                    </Dialog.Title>
+                  </div>
+                  <div>
+                    <input
+                      ref={filePickerRef}
+                      type="file"
+                      hidden
+                      onChange={addImageToPost}
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      className="w-full border-none text-center focus:ring-0"
+                      placeholder="Please enter a caption ..."
+                      ref={captionRef}
+                    />
+                  </div>
                 </div>
-                <div className='mt-5 sm:mt-6'>
+                <div className="mt-5 sm:mt-6">
                   <button
-                    // disabled={!selectedFile}
+                    disabled={!selectedFile}
                     type="button"
                     className=" focus:rign-offset-2 inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring focus:ring-red-500 disabled:cursor-not-allowed disabled:bg-gray-300 hover:disabled:bg-gray-300 sm:text-sm"
+                    onClick={uploadPost}
                   >
-                    {/* {loading ? "Uploading":"Upload Post"} */}
-                    Upload Post
+                    {loading ? 'Uploading' : 'Upload Post'}
                   </button>
                 </div>
               </div>
