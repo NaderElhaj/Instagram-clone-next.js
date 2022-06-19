@@ -18,6 +18,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import Moment from 'react-moment'
 function Post({ id, username, userImage, img, caption }) {
   const { data: session } = useSession()
   const [comment, setComment] = useState('')
@@ -45,7 +46,6 @@ function Post({ id, username, userImage, img, caption }) {
       timestamp: serverTimestamp(),
     })
   }
-  console.log(comments)
 
   return (
     <div className="my-7 rounded-sm border bg-white">
@@ -74,6 +74,22 @@ function Post({ id, username, userImage, img, caption }) {
         <span className="mr-1 font-bold">{username} </span>
         {caption}
       </p>
+
+        {comments.length>0 &&(
+          <div className='ml-10 h-20 overflow-y-scroll scrollbar-thumb-black scrollbar-thin'>
+            {comments.map((comment)=>(
+              <div key={comment.id} className="flex items-center space-x-2 mb-3">
+                <img src={comment.data().profileImg} alt="" className='h-7 rounded-full object-cover'/>
+                <p className='text-sm flex-1'><span className='font-bold'>{comment.data().username} </span>{comment.data().comment}</p>
+                <Moment  fromNow className="py-5 text-cs" >
+                  {comment.data().timestamp?.toDate()}
+                </Moment>
+              </div>
+            ))}
+          </div>
+        )}
+
+
       {session && (
         <form className="flex items-center p-4">
           <EmojiHappyIcon className="h-7" />
